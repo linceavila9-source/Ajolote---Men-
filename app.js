@@ -506,7 +506,7 @@ async function sendToWhatsApp() {
   // Fallback: open WhatsApp with the order text pre-filled. The wa.me link
   // can't attach an image automatically, so if there's a proof photo we
   // save it to the device and ask the person to attach it manually.
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+  const url = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(message)}`;
   window.open(url, "_blank");
 
   if (yappyProofFile) {
