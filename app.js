@@ -5,6 +5,34 @@
 const WHATSAPP_NUMBER = "50764163179"; // +507 6892-8541
 const FEEDBACK_KEY = "ajolote_opiniones";
 
+/* ---------------- FIREBASE (reseñas compartidas con todos) ----------------
+   Este proyecto guarda las opiniones en Firestore (Firebase) para que sean
+   visibles para cualquier persona que visite la página, no solo en el
+   dispositivo donde se escribieron. */ 
+   
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBOQsGgUiLoKIGDrEyG1_njf9J1dWvG38o",
+  authDomain: "ajolote-fonda.firebaseapp.com",
+  projectId: "ajolote-fonda",
+  storageBucket: "ajolote-fonda.firebasestorage.app",
+  messagingSenderId: "908564943783",
+  appId: "1:908564943783:web:5858262621394c04df9c82",
+};
+
+let firestoreDB = null;
+let firebaseReady = false;
+try {
+  const configured = FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "TU_API_KEY";
+  if (configured && window.firebase) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firestoreDB = firebase.firestore();
+    firebaseReady = true;
+  }
+} catch (err) {
+  console.warn("No se pudo inicializar Firebase, se usará almacenamiento local:", err);
+  firebaseReady = false;
+}
+
 /* ---------------- MENU DATA (real menu) ---------------- */
 const MENU = {
   tacos: [
@@ -88,6 +116,24 @@ function renderMenu() {
   renderCategory("menuPostres", MENU.postres);
 }
 
+/* ---------------- CATEGORY FILTER ---------------- */
+let activeCategory = "todo"; // 'todo' | 'tacos' | 'promos' | 'bebidas' | 'postres'
+
+function setActiveCategory(cat) {
+  activeCategory = cat;
+
+  document.querySelectorAll("#catNav .cat-nav__btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.cat === cat);
+  });
+
+  document.querySelectorAll(".menu-cat-section").forEach((section) => {
+    const show = cat === "todo" || section.dataset.cat === cat;
+    section.classList.toggle("is-hidden", !show);
+  });
+
+  document.getElementById("menu").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderCategory(containerId, items) {
   const container = document.getElementById(containerId);
   container.innerHTML = items.map(itemCardHTML).join("");
@@ -97,33 +143,36 @@ function itemCardHTML(item) {
   const qty = cart[item.id] || 0;
   const restricted = isRestricted(item);
   return `
-    <div class="menu-card" data-item="${item.id}">
-      <button class="menu-card__img-wrap" data-open="${item.id}" aria-label="Ver ${item.name}">
-        ${item.image
-          ? `<img src="${item.image}" alt="${item.name}" loading="lazy" />`
-          : `<span class="menu-card__placeholder"><img src="assets/logo.png" alt="" /></span>`
-        }
-      </button>
-      <div class="menu-card__top">
-        <button class="menu-card__name text-left" data-open="${item.id}">${item.name}</button>
-        <span class="menu-card__price">${money(item.price)}</span>
-      </div>
-      <p class="menu-card__desc">${item.desc}</p>
-      ${item.badge ? `<span class="menu-card__badge ${item.restriction ? "restrict" : ""}">${item.badge}</span>` : ""}
-      <div class="menu-card__footer">
-        ${qty > 0
-          ? `<div class="qty-control">
-               <button data-action="dec" data-id="${item.id}" aria-label="Quitar uno">−</button>
-               <span class="text-sm w-4 text-center">${qty}</span>
-               <button data-action="inc" data-id="${item.id}" aria-label="Agregar uno">+</button>
-             </div>`
-          : `<span class="text-xs text-muted">${restricted ? restrictionMessage(item) : "Elige tu cantidad"}</span>`
-        }
-        <button class="add-btn" data-action="add" data-id="${item.id}" ${restricted ? "disabled" : ""}>
-          ${qty > 0 ? "Agregar otro" : "Agregar"}
+    <li>
+      <div class="menu-row" data-item="${item.id}">
+        <button class="menu-row__open" data-open="${item.id}" aria-label="Ver ${item.name}">
+          <span class="menu-row__img-wrap">
+            ${item.image
+              ? `<img src="${item.image}" alt="${item.name}" loading="lazy" />`
+              : `<span class="menu-row__placeholder"><img src="assets/logo.png" alt="" /></span>`
+            }
+          </span>
+          <span class="menu-row__body">
+            <span class="menu-row__name">${item.name}</span>
+            <span class="menu-row__desc">${item.desc}</span>
+            ${item.badge ? `<span class="menu-row__badge ${item.restriction ? "restrict" : ""}">${item.badge}</span>` : ""}
+          </span>
         </button>
+        <div class="menu-row__aside">
+          <span class="menu-row__price">${money(item.price)}</span>
+          ${qty > 0
+            ? `<div class="qty-control">
+                 <button data-action="dec" data-id="${item.id}" aria-label="Quitar uno">−</button>
+                 <span class="text-sm w-4 text-center">${qty}</span>
+                 <button data-action="inc" data-id="${item.id}" aria-label="Agregar uno">+</button>
+               </div>`
+            : restricted
+              ? `<span class="menu-row__note">${restrictionMessage(item)}</span>`
+              : `<button class="add-btn-icon" data-action="add" data-id="${item.id}" aria-label="Agregar ${item.name}">+</button>`
+          }
+        </div>
       </div>
-    </div>
+    </li>
   `;
 }
 
@@ -553,7 +602,7 @@ function refreshAll() {
 }
 
 /* ---------------- FEEDBACK FORM ---------------- */
-function loadFeedback() {
+function loadFeedbackLocal() {
   try {
     return JSON.parse(localStorage.getItem(FEEDBACK_KEY)) || [];
   } catch {
@@ -561,22 +610,69 @@ function loadFeedback() {
   }
 }
 
-function saveFeedback(entry) {
-  const all = loadFeedback();
+function saveFeedbackLocal(entry) {
+  const all = loadFeedbackLocal();
   all.unshift(entry);
   localStorage.setItem(FEEDBACK_KEY, JSON.stringify(all));
 }
 
-function renderFeedbackList() {
-  const all = loadFeedback();
+function saveFeedback(entry) {
+  if (firebaseReady && firestoreDB) {
+    firestoreDB.collection("resenas").add({
+      ...entry,
+      creado: firebase.firestore.FieldValue.serverTimestamp(),
+    }).catch((err) => {
+      console.error("Error guardando en Firestore:", err);
+      showToast("No se pudo enviar tu opinión a la nube; quedó guardada solo en este dispositivo.");
+      saveFeedbackLocal(entry);
+      renderFeedbackList();
+    });
+  } else {
+    saveFeedbackLocal(entry);
+    renderFeedbackList();
+  }
+}
+
+function subscribeToFeedback() {
+  const note = document.getElementById("feedbackSyncNote");
+  if (firebaseReady && firestoreDB) {
+    note.classList.add("hidden");
+    firestoreDB.collection("resenas").orderBy("creado", "desc").limit(20)
+      .onSnapshot(
+        (snap) => renderFeedbackList(snap.docs.map((d) => d.data())),
+        (err) => {
+          console.error("Error leyendo Firestore:", err);
+          note.textContent = "No se pudieron cargar las opiniones de la nube; mostrando solo las de este dispositivo.";
+          note.classList.remove("hidden");
+          renderFeedbackList(loadFeedbackLocal());
+        }
+      );
+  } else {
+    note.textContent = "Sincronización en la nube no configurada aún: estas opiniones solo se ven en este dispositivo.";
+    note.classList.remove("hidden");
+    renderFeedbackList(loadFeedbackLocal());
+  }
+}
+
+function starsHTML(n) {
+  n = Number(n) || 0;
+  let out = "";
+  for (let i = 1; i <= 5; i++) {
+    out += `<span class="${i <= n ? "star-filled" : "star-empty"}">★</span>`;
+  }
+  return out;
+}
+
+function renderFeedbackList(entries) {
+  const all = entries || [];
   const list = document.getElementById("feedbackList");
   const empty = document.getElementById("feedbackEmpty");
 
   empty.classList.toggle("hidden", all.length > 0);
-  list.innerHTML = all.slice(0, 12).map(fb => `
+  list.innerHTML = all.slice(0, 20).map(fb => `
     <div class="feedback-item">
       <div class="feedback-item__meta">
-        <span>${fb.comida}</span> · <span>Precios: ${fb.precios}</span> · <span>${fb.fecha}</span>
+        <span class="feedback-item__stars">${starsHTML(fb.estrellas)}</span> · <span>${fb.comida}</span> · <span>Precios: ${fb.precios}</span> · <span>${fb.fecha}</span>
       </div>
       ${fb.consejoComida ? `<p>"${escapeHTML(fb.consejoComida)}"</p>` : ""}
     </div>
@@ -593,7 +689,7 @@ function escapeHTML(str) {
 document.addEventListener("DOMContentLoaded", () => {
   renderMenu();
   renderCart();
-  renderFeedbackList();
+  subscribeToFeedback();
 
   // Menu clicks (event delegation)
   document.querySelectorAll("#menuTacos, #menuPromos, #menuBebidas, #menuPostres").forEach(container => {
@@ -691,26 +787,36 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Category quick-nav: highlight the section currently in view
-  const catButtons = document.querySelectorAll("#catNav .cat-nav__btn");
-  if (catButtons.length) {
-    const sections = Array.from(catButtons)
-      .map(btn => document.getElementById(btn.dataset.cat))
-      .filter(Boolean);
+  // Category quick-nav: filter the menu to just the tapped category
+  // ("Menú" shows everything again).
+  document.getElementById("catNav").addEventListener("click", (e) => {
+    const btn = e.target.closest(".cat-nav__btn");
+    if (!btn) return;
+    setActiveCategory(btn.dataset.cat);
+  });
 
-    const setActive = (id) => {
-      catButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.cat === id));
-    };
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter(e => e.isIntersecting);
-        if (visible.length) setActive(visible[0].target.id);
-      },
-      { rootMargin: "-45% 0px -50% 0px", threshold: 0 }
-    );
-    sections.forEach(sec => observer.observe(sec));
-  }
+  // Star rating (calificación general de la reseña)
+  const starRating = document.getElementById("starRating");
+  const starsInput = document.querySelector('input[name="estrellas"]');
+  const paintStars = (value) => {
+    starRating.querySelectorAll(".star").forEach((s) => {
+      s.classList.toggle("is-filled", Number(s.dataset.value) <= value);
+    });
+  };
+  starRating.addEventListener("click", (e) => {
+    const btn = e.target.closest(".star");
+    if (!btn) return;
+    const value = Number(btn.dataset.value);
+    starsInput.value = value;
+    paintStars(value);
+  });
+  starRating.addEventListener("mouseover", (e) => {
+    const btn = e.target.closest(".star");
+    if (btn) paintStars(Number(btn.dataset.value));
+  });
+  starRating.addEventListener("mouseleave", () => {
+    paintStars(Number(starsInput.value) || 0);
+  });
 
   // Feedback form submit
   document.getElementById("feedbackForm").addEventListener("submit", (e) => {
@@ -718,12 +824,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const form = e.target;
     const data = Object.fromEntries(new FormData(form).entries());
 
-    if (!data.comida || !data.precios || !data.fuente) {
-      showToast("Por favor completa las preguntas de opción múltiple.");
+    if (!data.estrellas || !data.comida || !data.precios || !data.fuente) {
+      showToast("Por favor completa la calificación por estrellas y las preguntas de opción múltiple.");
       return;
     }
 
     saveFeedback({
+      estrellas: Number(data.estrellas),
       fuente: data.fuente,
       comida: data.comida,
       consejoComida: data.consejoComida || "",
@@ -737,10 +844,11 @@ document.addEventListener("DOMContentLoaded", () => {
     form.reset();
     document.querySelectorAll(".chip--active").forEach(c => c.classList.remove("chip--active"));
     document.querySelectorAll('input[type="hidden"][name="comida"], input[type="hidden"][name="precios"]').forEach(i => i.value = "");
+    starsInput.value = "";
+    paintStars(0);
 
     document.getElementById("feedbackThanks").classList.remove("hidden");
     setTimeout(() => document.getElementById("feedbackThanks").classList.add("hidden"), 4000);
-
-    renderFeedbackList();
   });
 });
+
