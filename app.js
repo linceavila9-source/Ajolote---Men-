@@ -2,7 +2,7 @@
    AJOLOTE | FONDA MEXICANA — app.js
    ============================================================ */
 
-const WHATSAPP_NUMBER = "50764163179"; // +507 6892-8541
+const WHATSAPP_NUMBER = "50764163179"; // +507 6416-3179
 const FEEDBACK_KEY = "ajolote_opiniones";
 
 /* ---------------- FIREBASE (reseñas compartidas con todos) ----------------
@@ -76,16 +76,18 @@ const MENU = {
 
 const SERVICE_LABELS = {
   local: "Comer en el Local",
-  retiro: "Retirar en Sucursal",
+  retiro: "Retirar en el Local",
   domicilio: "Pedido a Domicilio",
 };
 
 /* ---------------- STATE ---------------- */
 let cart = {};      // { itemId: qty }
 let serviceType = null; // 'local' | 'retiro' | 'domicilio'
+let yappyAcknowledged = false;
 let paymentMethod = null; // 'efectivo' | 'yappy'
 let deliveryAddress = "";
-let yappyProofFile = null; // File del comprobante de pago (imagen)
+let pendingAddId = null; // producto que el cliente quiso agregar antes de elegir servicio
+
 
 /* ---------------- HELPERS ---------------- */
 function findItem(id) {
@@ -195,8 +197,10 @@ function addItem(id) {
   if (!item) return;
 
   if (!serviceType) {
+    pendingAddId = id;
+    closeDetail();
     openCart();
-    showToast("Primero elige tu tipo de servicio en el carrito 🌮");
+    showToast("Elige tu tipo de servicio y agregamos el producto 🌮");
     return;
   }
   if (isRestricted(item)) {
@@ -314,7 +318,6 @@ function renderPaymentOptions() {
       { id: "yappy", label: "Yappy" },
     ];
   } else {
-    // Retiro o domicilio -> Yappy obligatorio y previo
     options = [{ id: "yappy", label: "Yappy (obligatorio)" }];
     if (paymentMethod !== "yappy") paymentMethod = "yappy";
   }
@@ -325,7 +328,19 @@ function renderPaymentOptions() {
     </button>
   `).join("");
 
-  yappyBox.classList.toggle("hidden", paymentMethod !== "yappy");
+  const isYappy = paymentMethod === "yappy";
+  yappyBox.classList.toggle("hidden", !isYappy);
+  
+  if (isYappy) paintAckBtn();
+}
+
+function paintAckBtn() {
+  const ackBtn = document.getElementById("yappyAckBtn");
+  if (!ackBtn) return;
+  ackBtn.classList.toggle("is-ack", yappyAcknowledged);
+  ackBtn.querySelector("span").textContent = yappyAcknowledged
+    ? "✓ ¡Listo! Enviaré mi comprobante por WhatsApp"
+    : "✓ Entendido, enviaré mi comprobante al WhatsApp";
 }
 
 /* ---------------- CHECKOUT VALIDATION ---------------- */
@@ -345,8 +360,7 @@ function isCheckoutReady() {
   }
 
   if (paymentMethod === "yappy") {
-    const ref = document.getElementById("yappyRef").value.trim();
-    if (!ref && !yappyProofFile) return false;
+    if (!yappyAcknowledged) return false; // Exige haber presionado el botón de entendido
   }
   return true;
 }
@@ -357,6 +371,7 @@ function openCart() {
   document.getElementById("overlay").classList.remove("hidden");
 }
 function closeCart() {
+  if (!serviceType) pendingAddId = null;
   document.getElementById("cartDrawer").classList.remove("open");
   document.getElementById("overlay").classList.add("hidden");
 }
@@ -374,8 +389,6 @@ function useGPS() {
   status.classList.remove("hidden");
   gpsBtn.disabled = true;
 
-  // Track the best (most accurate) fix we get, since a single reading can be
-  // imprecise right after enabling location services.
   let bestPos = null;
   let watchId = null;
   let settled = false;
@@ -398,7 +411,7 @@ function useGPS() {
 
     const accText = accuracy ? ` (precisión aprox. ±${Math.round(accuracy)} m)` : "";
     if (accuracy && accuracy > 100) {
-      status.textContent = `Ubicación capturada${accText}. La precisión es baja: si el punto no coincide con tu casa, agrega una referencia extra en el cuadro de abajo (ej. "casa color azul, frente a la tienda X").`;
+      status.textContent = `Ubicación capturada${accText}. La precisión es baja: si el punto no coincide con tu casa, agrega una referencia extra en el cuadro de abajo.`;
     } else {
       status.textContent = `Ubicación capturada correctamente ✅${accText}`;
     }
@@ -407,55 +420,21 @@ function useGPS() {
 
   const options = { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 };
 
-  // watchPosition lets the device refine the fix (common on phones, the first
-  // reading right after requesting permission is often the least accurate).
   watchId = navigator.geolocation.watchPosition(
     (pos) => {
       if (!bestPos || pos.coords.accuracy < bestPos.coords.accuracy) bestPos = pos;
-      // Good enough accuracy — stop early instead of waiting out the full timeout.
       if (pos.coords.accuracy && pos.coords.accuracy <= 30) finish(pos, false);
     },
-    () => finish(null, false),
+    () => finish(bestPos, false),
     options
   );
 
-  // Stop refining after a few seconds and use the best fix obtained so far.
   setTimeout(() => finish(bestPos, true), 6000);
 }
 
-/* ---------------- COMPROBANTE DE PAGO (YAPPY) ---------------- */
-function handleYappyProofSelected(file) {
-  if (!file) return;
-  if (!file.type.startsWith("image/")) {
-    showToast("Selecciona un archivo de imagen (foto o captura de pantalla).");
-    return;
-  }
-  yappyProofFile = file;
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    document.getElementById("yappyProofPreview").src = reader.result;
-    document.getElementById("yappyProofPreviewWrap").classList.remove("hidden");
-    document.getElementById("yappyProofLabel").classList.add("hidden");
-  };
-  reader.readAsDataURL(file);
-  updateCheckoutState();
-}
-
-function clearYappyProof() {
-  yappyProofFile = null;
-  document.getElementById("yappyProofInput").value = "";
-  document.getElementById("yappyProofPreview").src = "";
-  document.getElementById("yappyProofPreviewWrap").classList.add("hidden");
-  document.getElementById("yappyProofLabel").classList.remove("hidden");
-  updateCheckoutState();
-}
-
-/* ---------------- WHATSAPP MESSAGE ---------------- */
 function buildWhatsAppMessage() {
   const name = document.getElementById("customerName").value.trim() || "Cliente";
   const address = document.getElementById("addressInput").value.trim();
-  const yappyRef = document.getElementById("yappyRef").value.trim();
 
   const lines = [];
   lines.push(`*Nuevo pedido — Ajolote Fonda Mexicana*`);
@@ -474,68 +453,40 @@ function buildWhatsAppMessage() {
   lines.push(`Total: ${money(cartTotal())}`);
   lines.push(`Método de pago: ${paymentMethod === "yappy" ? "Yappy" : "Efectivo"}`);
   if (paymentMethod === "yappy") {
-    if (yappyRef) lines.push(`Referencia de pago Yappy: ${yappyRef}`);
-    if (yappyProofFile) lines.push(`(Comprobante de pago adjunto)`);
+    lines.push(`_(Comprobante de pago adjunto en este chat)_`);
   }
   return lines.join("\n");
 }
 
-async function sendToWhatsApp() {
+function sendToWhatsApp() {
   if (!isCheckoutReady()) return;
   const message = buildWhatsAppMessage();
 
-  // If the browser supports sharing files (most mobile browsers), share the
-  // order text together with the payment proof photo in one step, letting
-  // the person pick WhatsApp from the native share sheet.
-  if (yappyProofFile && navigator.canShare && navigator.canShare({ files: [yappyProofFile] })) {
-    try {
-      await navigator.share({
-        text: message,
-        title: "Pedido Ajolote Fonda Mexicana",
-        files: [yappyProofFile],
-      });
-      showToast("¡Listo! Envía el pedido y la foto del comprobante por WhatsApp. 🌮");
-      resetOrderAfterSend();
-      return;
-    } catch (err) {
-      // User cancelled the share sheet or it failed — fall back below.
-      if (err && err.name === "AbortError") return;
-    }
-  }
-
-  // Fallback: open WhatsApp with the order text pre-filled. The wa.me link
-  // can't attach an image automatically, so if there's a proof photo we
-  // save it to the device and ask the person to attach it manually.
   const url = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(message)}`;
-  window.open(url, "_blank");
+  const win = window.open(url, "_blank");
+  if (!win) window.location.href = url; // si el navegador bloquea la ventana emergente
 
-  if (yappyProofFile) {
-    const proofUrl = URL.createObjectURL(yappyProofFile);
-    const link = document.createElement("a");
-    link.href = proofUrl;
-    link.download = "comprobante-yappy" + (yappyProofFile.name.match(/\.\w+$/)?.[0] || ".jpg");
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(proofUrl), 5000);
-    showToast("Abrimos WhatsApp y guardamos tu comprobante. No olvides adjuntar la foto al chat. 📎");
-  } else {
-    showToast("¡Pedido enviado! Confírmalo por WhatsApp. 🌮");
-  }
+  showToast("¡Pedido enviado! Confírmalo por WhatsApp. 🌮");
   resetOrderAfterSend();
 }
 
 function resetOrderAfterSend() {
   cart = {};
+  serviceType = null;
   paymentMethod = null;
+  yappyAcknowledged = false;
   deliveryAddress = "";
+  pendingAddId = null;
   document.getElementById("addressInput").value = "";
-  document.getElementById("yappyRef").value = "";
   document.getElementById("customerName").value = "";
-  clearYappyProof();
-  renderMenu();
-  renderCart();
+  const gps = document.getElementById("gpsStatus");
+  gps.textContent = "";
+  gps.classList.add("hidden");
+  closeCart();
+  refreshAll();
 }
+
+
 
 /* ---------------- ITEM DETAIL MODAL ---------------- */
 let detailItemId = null;
@@ -613,7 +564,7 @@ function loadFeedbackLocal() {
 function saveFeedbackLocal(entry) {
   const all = loadFeedbackLocal();
   all.unshift(entry);
-  localStorage.setItem(FEEDBACK_KEY, JSON.stringify(all));
+  try { localStorage.setItem(FEEDBACK_KEY, JSON.stringify(all)); } catch (e) { console.warn(e); }
 }
 
 function saveFeedback(entry) {
@@ -625,11 +576,11 @@ function saveFeedback(entry) {
       console.error("Error guardando en Firestore:", err);
       showToast("No se pudo enviar tu opinión a la nube; quedó guardada solo en este dispositivo.");
       saveFeedbackLocal(entry);
-      renderFeedbackList();
+      renderFeedbackList(loadFeedbackLocal());
     });
   } else {
     saveFeedbackLocal(entry);
-    renderFeedbackList();
+    renderFeedbackList(loadFeedbackLocal());
   }
 }
 
@@ -672,16 +623,17 @@ function renderFeedbackList(entries) {
   list.innerHTML = all.slice(0, 20).map(fb => `
     <div class="feedback-item">
       <div class="feedback-item__meta">
-        <span class="feedback-item__stars">${starsHTML(fb.estrellas)}</span> · <span>${fb.comida}</span> · <span>Precios: ${fb.precios}</span> · <span>${fb.fecha}</span>
+        <span class="feedback-item__stars">${starsHTML(fb.estrellas)}</span> · <span>${escapeHTML(fb.comida || "")}</span> · <span>Precios: ${escapeHTML(fb.precios || "")}</span> · <span>${escapeHTML(fb.fecha || "")}</span>
       </div>
       ${fb.consejoComida ? `<p>"${escapeHTML(fb.consejoComida)}"</p>` : ""}
+      ${fb.consejoGeneral ? `<p class="mt-1">"${escapeHTML(fb.consejoGeneral)}"</p>` : ""}
     </div>
   `).join("");
 }
 
 function escapeHTML(str) {
   const div = document.createElement("div");
-  div.textContent = str;
+  div.textContent = String(str);
   return div.innerHTML;
 }
 
@@ -708,6 +660,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // Botón de entendido para Yappy
+  document.addEventListener("click", (e) => {
+    const ackBtn = e.target.closest("#yappyAckBtn");
+    if (!ackBtn) return;
+    yappyAcknowledged = !yappyAcknowledged;
+    paintAckBtn();
+    updateCheckoutState();
+  });
+
   // Detail modal
   document.getElementById("closeDetail").addEventListener("click", closeDetail);
   document.getElementById("detailOverlay").addEventListener("click", (e) => {
@@ -721,6 +682,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!btn || !detailItemId) return;
     if (btn.dataset.action === "detail-inc") addItem(detailItemId);
     if (btn.dataset.action === "detail-dec") decItem(detailItemId);
+  });
+
+  // Tecla Escape cierra modal y carrito
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    closeDetail();
+    closeCart();
   });
 
   // Cart drawer open/close
@@ -744,7 +712,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!btn) return;
     serviceType = btn.dataset.service;
     paymentMethod = null;
+    yappyAcknowledged = false;
     enforceServiceRestrictions();
+    // Si el cliente tocó "+" antes de elegir servicio, lo agregamos ahora
+    if (pendingAddId) {
+      const pending = findItem(pendingAddId);
+      const id = pendingAddId;
+      pendingAddId = null;
+      if (pending && !isRestricted(pending)) {
+        cart[id] = (cart[id] || 0) + 1;
+      } else if (pending) {
+        showToast(`"${pending.name}" ${restrictionMessage(pending).toLowerCase()}.`);
+      }
+    }
     refreshAll();
   });
 
@@ -753,20 +733,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const btn = e.target.closest(".pay-btn");
     if (!btn) return;
     paymentMethod = btn.dataset.pay;
+    if (paymentMethod !== "yappy") yappyAcknowledged = false;
     renderPaymentOptions();
     updateCheckoutState();
   });
 
   // Address / yappy ref / name inputs affect checkout readiness
   document.getElementById("addressInput").addEventListener("input", updateCheckoutState);
-  document.getElementById("yappyRef").addEventListener("input", updateCheckoutState);
+ 
   document.getElementById("customerName").addEventListener("input", updateCheckoutState);
-
-  // Yappy payment proof (photo)
-  document.getElementById("yappyProofInput").addEventListener("change", (e) => {
-    handleYappyProofSelected(e.target.files[0]);
-  });
-  document.getElementById("yappyProofRemove").addEventListener("click", clearYappyProof);
 
   // GPS
   document.getElementById("gpsBtn").addEventListener("click", useGPS);
@@ -788,7 +763,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Category quick-nav: filter the menu to just the tapped category
-  // ("Menú" shows everything again).
   document.getElementById("catNav").addEventListener("click", (e) => {
     const btn = e.target.closest(".cat-nav__btn");
     if (!btn) return;
