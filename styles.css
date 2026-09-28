@@ -335,6 +335,32 @@ img, svg {
   color: #f6ece1;
 }
 
+.pay-btn:hover {
+  border-color: #cda434;
+}
+
+/* Botón "Entendido" del aviso de Yappy */
+.yappy-ack-btn {
+  width: 100%;
+  background: #171213;
+  border: 1px solid #cda434;
+  color: #cda434;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.yappy-ack-btn:hover,
+.yappy-ack-btn.is-ack {
+  background: #cda434;
+  color: #0c0a0b;
+}
+
 /* ---------- Cart drawer ---------- */
 #cartDrawer.open {
   transform: translateX(0);
