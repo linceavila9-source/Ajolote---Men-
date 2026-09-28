@@ -107,46 +107,47 @@
 <div class="sticky top-[57px] z-30 bg-ink/95 backdrop-blur border-b border-line">
   <div class="max-w-5xl mx-auto px-4 py-3">
     <nav class="cat-nav" id="catNav" aria-label="Categorías del menú">
-      <a href="#cat-tacos" class="cat-nav__btn" data-cat="cat-tacos">Tacos y quesadillas</a>
-      <a href="#cat-promos" class="cat-nav__btn" data-cat="cat-promos">Promociones</a>
-      <a href="#cat-bebidas" class="cat-nav__btn" data-cat="cat-bebidas">Bebidas</a>
-      <a href="#cat-postres" class="cat-nav__btn" data-cat="cat-postres">Postres</a>
+      <button type="button" class="cat-nav__btn active" data-cat="todo">Menú</button>
+      <button type="button" class="cat-nav__btn" data-cat="tacos">Tacos y quesadillas</button>
+      <button type="button" class="cat-nav__btn" data-cat="promos">Promociones</button>
+      <button type="button" class="cat-nav__btn" data-cat="bebidas">Bebidas</button>
+      <button type="button" class="cat-nav__btn" data-cat="postres">Postres</button>
     </nav>
   </div>
 </div>
 
 <main id="menu" class="max-w-5xl mx-auto px-4 py-14 sm:py-20">
 
-  <section id="cat-tacos" class="mb-16">
-    <div class="flex items-baseline justify-between mb-6">
+  <section id="cat-tacos" class="menu-cat-section mb-14" data-cat="tacos">
+    <div class="flex items-baseline justify-between mb-4">
       <h2 class="font-display font-bold text-2xl sm:text-3xl">Tacos y quesadillas</h2>
-      <span class="text-muted text-sm">Hechas al momento</span>
+      <span class="text-muted text-sm hidden sm:inline">Hechas al momento</span>
     </div>
-    <div id="menuTacos" class="grid sm:grid-cols-2 gap-4"></div>
+    <ul id="menuTacos" class="menu-list"></ul>
   </section>
 
-  <section id="cat-promos" class="mb-16">
-    <div class="flex items-baseline justify-between mb-6">
+  <section id="cat-promos" class="menu-cat-section mb-14" data-cat="promos">
+    <div class="flex items-baseline justify-between mb-4">
       <h2 class="font-display font-bold text-2xl sm:text-3xl">Promociones</h2>
-      <span class="text-muted text-sm">Para compartir</span>
+      <span class="text-muted text-sm hidden sm:inline">Para compartir</span>
     </div>
-    <div id="menuPromos" class="grid sm:grid-cols-2 gap-4"></div>
+    <ul id="menuPromos" class="menu-list"></ul>
   </section>
 
-  <section id="cat-bebidas" class="mb-16">
-    <div class="flex items-baseline justify-between mb-6">
+  <section id="cat-bebidas" class="menu-cat-section mb-14" data-cat="bebidas">
+    <div class="flex items-baseline justify-between mb-4">
       <h2 class="font-display font-bold text-2xl sm:text-3xl">Bebidas</h2>
-      <span class="text-muted text-sm">Frías y frescas</span>
+      <span class="text-muted text-sm hidden sm:inline">Frías y frescas</span>
     </div>
-    <div id="menuBebidas" class="grid sm:grid-cols-2 gap-4"></div>
+    <ul id="menuBebidas" class="menu-list"></ul>
   </section>
 
-  <section id="cat-postres" class="mb-4">
-    <div class="flex items-baseline justify-between mb-6">
+  <section id="cat-postres" class="menu-cat-section mb-4" data-cat="postres">
+    <div class="flex items-baseline justify-between mb-4">
       <h2 class="font-display font-bold text-2xl sm:text-3xl">Postres</h2>
-      <span class="text-muted text-sm">El toque dulce</span>
+      <span class="text-muted text-sm hidden sm:inline">El toque dulce</span>
     </div>
-    <div id="menuPostres" class="grid sm:grid-cols-2 gap-4"></div>
+    <ul id="menuPostres" class="menu-list"></ul>
   </section>
 
 </main>
@@ -180,10 +181,22 @@
   <div class="max-w-3xl mx-auto px-4 py-14 sm:py-20">
     <h2 class="font-display font-bold text-2xl sm:text-3xl mb-3">Opina y critica</h2>
     <p class="text-muted mb-10">
-      Queremos saber cómo fue tu experiencia visitando nuestra querida Fonda Mexicana. Por favor responde con sinceridad, buscamos mejorar y brindar una experiencia cada vez mejor. Tu opinión es completamente anónima.
+      Queremos saber cómo fue tu experiencia visitando nuestra querida Fonda Mexicana. Por favor responde con sinceridad, buscamos mejorar y brindar una experiencia cada vez mejor. Tu opinión es anónima y se muestra públicamente para toda la comunidad.
     </p>
 
     <form id="feedbackForm" class="space-y-7">
+      <div>
+        <label class="block text-sm mb-2 text-cream">¿Cuántas estrellas le darías a tu experiencia?</label>
+        <div class="star-rating" id="starRating">
+          <button type="button" class="star" data-value="1" aria-label="1 estrella">★</button>
+          <button type="button" class="star" data-value="2" aria-label="2 estrellas">★</button>
+          <button type="button" class="star" data-value="3" aria-label="3 estrellas">★</button>
+          <button type="button" class="star" data-value="4" aria-label="4 estrellas">★</button>
+          <button type="button" class="star" data-value="5" aria-label="5 estrellas">★</button>
+        </div>
+        <input type="hidden" name="estrellas" required />
+      </div>
+
       <div>
         <label class="block text-sm mb-2 text-cream">¿Cómo te enteraste de nosotros?</label>
         <select name="fuente" required class="input-field">
@@ -241,13 +254,14 @@
       </div>
 
       <button type="submit" class="bg-pink text-ink font-semibold px-6 py-3 rounded-full hover:bg-white transition-colors">Enviar opinión anónima</button>
-      <p id="feedbackThanks" class="text-gold text-sm hidden">¡Gracias! Tu opinión anónima quedó registrada. 🌸</p>
+      <p id="feedbackThanks" class="text-gold text-sm hidden">¡Gracias! Tu opinión anónima ya es visible para toda la comunidad. 🌸</p>
     </form>
 
     <div class="mt-14">
       <h3 class="font-display font-semibold text-lg mb-4">Opiniones recientes de la comunidad</h3>
+      <p id="feedbackSyncNote" class="text-xs text-muted mb-3 hidden"></p>
       <div id="feedbackList" class="space-y-3"></div>
-      <p id="feedbackEmpty" class="text-muted text-sm">Aún no hay opiniones registradas en este dispositivo.</p>
+      <p id="feedbackEmpty" class="text-muted text-sm">Aún no hay opiniones registradas.</p>
     </div>
   </div>
 </section>
@@ -320,7 +334,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16l4.5-6 3 4 2.5-3L20 16"/><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="9" r="1.2" fill="currentColor" stroke="none"/></svg>
           Adjuntar foto del comprobante
         </label>
-        <input id="yappyProofInput" type="file" accept="image/*" capture="environment" class="hidden" />
+        <input id="yappyProofInput" type="file" accept="image/*" class="hidden" />
 
         <p class="text-xs text-muted">¿No tienes foto a mano? También puedes escribir el número de referencia:</p>
         <input id="yappyRef" type="text" class="input-field" placeholder="N.º de comprobante / referencia Yappy (opcional si adjuntas foto)" />
@@ -357,7 +371,7 @@
         <h3 id="detailName" class="font-display font-bold text-xl leading-tight"></h3>
         <span id="detailPrice" class="font-display font-bold text-lg text-pink whitespace-nowrap"></span>
       </div>
-      <p id="detailBadge" class="menu-card__badge mt-3 hidden"></p>
+      <p id="detailBadge" class="menu-row__badge mt-3 hidden"></p>
       <p id="detailDesc" class="text-sm text-muted mt-3 leading-relaxed"></p>
       <p id="detailRestricted" class="text-xs text-orange mt-3 hidden"></p>
 
@@ -377,6 +391,9 @@
 <div id="toast" class="fixed bottom-5 right-5 z-[70] bg-surface2 border border-line text-cream text-sm px-4 py-3 rounded-lg shadow-lg translate-y-24 opacity-0 transition-all duration-300 max-w-xs"></div>
 
 <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+<!-- Firebase (para que las opiniones/reseñas se guarden en la nube y las vea todo el mundo) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
